@@ -47,12 +47,12 @@ svg{width:min(88vw,420px);height:auto;touch-action:manipulation;display:block}
 .pop{animation:pop .5s ease-out both}
 @keyframes pop{0%{transform:scale(.3);opacity:0}55%{transform:scale(1.2);opacity:1}78%{transform:scale(.93)}100%{transform:scale(1)}}
 </style></head><body>
-<h1>Dots and Boxes</h1>
-<p class="sub">Claim the most boxes to win</p>
+<h1>Squared</h1>
+<p class="sub">Time to take somebody to school</p>
 <div id="lobby" class="card hide">
  <label for="name">Your name</label>
  <input id="name" maxlength="12" placeholder="Type your name" autocomplete="nickname">
- <div class="row"><button id="create">Create game</button></div>
+ <div class="row"><button id="create">Start a game</button></div>
  <div class="row">or join with a code <input id="code" maxlength="4" placeholder="ABCD" autocapitalize="characters"><button id="join">Join</button></div>
 </div>
 <div id="game" class="hide">
@@ -72,7 +72,7 @@ const col=p=>`var(--p${p+1})`,say=t=>$("msg").textContent=t;
 const myName=()=>$("name").value.trim();
 const initial=i=>(Array.from(g.names[i])[0]||"?").toUpperCase();
 function show(w){$("lobby").classList.toggle("hide",w!=="lobby");$("game").classList.toggle("hide",w!=="game");$("ctl").classList.toggle("hide",w!=="game");
- if(w==="lobby")say("Enter your name, then create a game or join a friend's.")}
+ if(w==="lobby")say("Enter your name, then create a game or join with a code.")}
 async function post(path,body){
  const r=await fetch("/api/"+path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,...body})});
  const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||"request failed");return j}
