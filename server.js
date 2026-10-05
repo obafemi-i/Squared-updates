@@ -9,7 +9,6 @@ const PORT = process.env.PORT || 3000;
 const N = 4;                              // boxes per side (5x5 dots)
 const ROOM_TTL_MS = 6 * 60 * 60 * 1000;   // drop rooms idle for 6h
 const MAX_ROOMS = 5000;
-const PALETTE_SIZE = 8;                   // colors the client offers (indexes 0-7)
 const PUBLIC = path.join(__dirname, "public");
 const rooms = new Map();
 
@@ -24,7 +23,7 @@ function newCode() {
 }
 const cleanName = (n) => Array.from(String(n || "").replace(/[\u0000-\u001f\u007f<>]/g, "").trim()).slice(0, 12).join("").trim();
 function newRoom(token, name) {
-  return { seats: [token, null], names: [name || "Player 1", null], colors: [0, 1], e: {}, own: {}, sc: [0, 0], turn: 0, round: 0, mv: 0, clients: new Set(), last: Date.now() };
+  return { seats: [token, null], names: [name || "Player 1", null], e: {}, own: {}, sc: [0, 0], turn: 0, round: 0, mv: 0, clients: new Set(), last: Date.now() };
 }
 const validEdge = (k) => {
   const m = /^([hv])(\d+),(\d+)$/.exec(k); if (!m) return false;
@@ -37,7 +36,7 @@ function seatOf(room, token) { return token ? room.seats.indexOf(token) : -1; }
 function view(code, room, token) {
   const online = [0, 1].map((i) => [...room.clients].some((cl) => room.seats[i] && cl.token === room.seats[i]));
   return { code, n: N, e: room.e, own: room.own, sc: room.sc, turn: room.turn, round: room.round, mv: room.mv,
-    joined: [!!room.seats[0], !!room.seats[1]], names: [room.names[0] || "Player 1", room.names[1] || "Player 2"], colors: room.colors, online, you: seatOf(room, token), over: room.sc[0] + room.sc[1] === N * N };
+    joined: [!!room.seats[0], !!room.seats[1]], names: [room.names[0] || "Player 1", room.names[1] || "Player 2"], online, you: seatOf(room, token), over: room.sc[0] + room.sc[1] === N * N };
 }
 function broadcast(code, room) {
   for (const cl of room.clients) cl.res.write("data: " + JSON.stringify(view(code, room, cl.token)) + "\n\n");
@@ -93,20 +92,13 @@ async function api(req, res, url) {
 
   if (url.pathname === "/api/join") {
     const nm = cleanName(b.name);
-    if (seatOf(room, b.token) < 0 && !room.seats[1]) { room.seats[1] = b.token; room.names[1] = nm || "Player 2"; room.colors[1] = room.colors[0] === 1 ? 0 : 1; broadcast(code, room); }
+    if (seatOf(room, b.token) < 0 && !room.seats[1]) { room.seats[1] = b.token; room.names[1] = nm || "Player 2"; broadcast(code, room); }
     else if (nm && seatOf(room, b.token) >= 0) { room.names[seatOf(room, b.token)] = nm; broadcast(code, room); }
     return send(res, 200, { seat: seatOf(room, b.token) });
   }
   const seat = seatOf(room, b.token);
   if (seat < 0) return send(res, 403, { error: "spectators can't act" });
 
-  if (url.pathname === "/api/color") {
-    const c = b.color;
-    if (!Number.isInteger(c) || c < 0 || c >= PALETTE_SIZE) return send(res, 400, { error: "bad color" });
-    if (room.seats[1 - seat] && room.colors[1 - seat] === c) return send(res, 409, { error: "color taken" });
-    room.colors[seat] = c; broadcast(code, room);
-    return send(res, 200, { ok: true });
-  }
   if (url.pathname === "/api/move") {
     if (!room.seats[1]) return send(res, 409, { error: "waiting for opponent" });
     if (room.sc[0] + room.sc[1] === N * N) return send(res, 409, { error: "game over" });
