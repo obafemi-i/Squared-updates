@@ -15,14 +15,14 @@ body{margin:0;min-height:100vh;color:var(--fg);font-family:system-ui,-apple-syst
 background:linear-gradient(125deg,var(--g1),var(--g2),var(--g3),var(--g4),var(--g5),var(--g1));background-size:400% 400%;animation:flow 22s ease infinite;
 display:flex;flex-direction:column;align-items:center;padding:16px;padding-top:max(16px,env(safe-area-inset-top));padding-bottom:max(16px,env(safe-area-inset-bottom))}
 @keyframes flow{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
-@media (prefers-reduced-motion:reduce){body{animation:none}.sweep,.pop{animation:none}}
+@media (prefers-reduced-motion:reduce){body{animation:none}}
 h1{font-size:1.7rem;margin:8px 0 4px;letter-spacing:.02em}
 .sub{color:var(--mut);margin:0 0 8px;font-size:.95rem}
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;margin:8px 0}
 .card{background:var(--card);border:1px solid var(--card-b);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-radius:20px;padding:14px;box-shadow:0 8px 30px rgba(0,40,30,.12)}
 #lobby{display:flex;flex-direction:column;align-items:center;gap:6px;padding:20px 22px}
-.pill{padding:6px 14px;border-radius:999px;border:3px solid transparent;font-weight:700;background:var(--card);backdrop-filter:blur(6px);transition:border-color .25s,transform .35s cubic-bezier(.3,1.6,.5,1)}
-.pill.on{transform:scale(1.07);border-color:currentColor}
+.pill{padding:6px 14px;border-radius:999px;border:2px solid transparent;font-weight:700;background:var(--card);backdrop-filter:blur(6px)}
+.pill.on{border-color:currentColor}
 #s1{color:var(--p1)}#s2{color:var(--p2)}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--edge);margin-right:6px}
 .dot.on{background:#2ecc71}
@@ -39,18 +39,16 @@ svg{width:min(88vw,420px);height:auto;touch-action:manipulation;display:block}
 .line{stroke:var(--edge);stroke-width:5;stroke-linecap:round}
 .hit:hover+.line{stroke:var(--hover)}
 .drawn{stroke-width:7}
-.sweep{stroke-dasharray:60;animation:sweep .5s cubic-bezier(.3,1.3,.5,1) both}
-@keyframes sweep{from{stroke-dashoffset:60;stroke-width:4}65%{stroke-dashoffset:0;stroke-width:12}to{stroke-dashoffset:0;stroke-width:7}}
 #msg{min-height:1.5em;color:var(--mut);margin:8px 0;text-align:center;font-weight:500}
 .code{font-family:ui-monospace,monospace;font-size:1.3rem;letter-spacing:.2em;font-weight:700}
 .hide{display:none!important}
-.pop{animation:pop .5s ease-out both}
-@keyframes pop{0%{transform:scale(.3);opacity:0}55%{transform:scale(1.2);opacity:1}78%{transform:scale(.93)}100%{transform:scale(1)}}
+.pop{animation:pop .35s ease}
+@keyframes pop{0%{transform:scale(.6);opacity:0}100%{transform:scale(1);opacity:1}}
 </style></head><body>
-<h1>Dots and Boxes</h1>
-<p class="sub">Claim the most boxes to win</p>
+<h1>Squared</h1>
+<p class="sub">Time to send somebody to school</p>
 <div id="lobby" class="card hide">
- <label for="name">Your name</label>
+ <label for="name">Pick a name</label>
  <input id="name" maxlength="12" placeholder="Type your name" autocomplete="nickname">
  <div class="row"><button id="create">Create game</button></div>
  <div class="row">or join with a code <input id="code" maxlength="4" placeholder="ABCD" autocapitalize="characters"><button id="join">Join</button></div>
@@ -67,12 +65,12 @@ const N=4,S=60,M=30,NS="http://www.w3.org/2000/svg",$=i=>document.getElementById
 const store={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v)}catch(e){}}};
 let token=store.get("dab-token");
 if(!token){const a=new Uint8Array(16);crypto.getRandomValues(a);token=[...a].map(x=>x.toString(16).padStart(2,"0")).join("");store.set("dab-token",token)}
-let room=null,es=null,g=null,busy=false,seen=new Set(),primed=false;
+let room=null,es=null,g=null,busy=false,drawnBoxes=new Set();
 const col=p=>`var(--p${p+1})`,say=t=>$("msg").textContent=t;
 const myName=()=>$("name").value.trim();
 const initial=i=>(Array.from(g.names[i])[0]||"?").toUpperCase();
 function show(w){$("lobby").classList.toggle("hide",w!=="lobby");$("game").classList.toggle("hide",w!=="game");$("ctl").classList.toggle("hide",w!=="game");
- if(w==="lobby")say("Enter your name, then create a game or join a friend's.")}
+ if(w==="lobby")say("Put in your name first, then create a game or join with a code.")}
 async function post(path,body){
  const r=await fetch("/api/"+path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,...body})});
  const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||"request failed");return j}
@@ -82,9 +80,9 @@ async function create(){store.set("dab-name",myName());try{const{code}=await pos
 function joinCode(){const c=$("code").value.trim().toUpperCase();if(c.length!==4)return say("Enter the 4-letter room code.");store.set("dab-name",myName());enter(c)}
 async function enter(c){
  try{await post("join",{code:c,name:store.get("dab-name")||""})}catch(e){store.set("dab-room");history.replaceState(null,"","#");show("lobby");say(e.message==="no such room"?"No game with that code.":e.message);return}
- room=c;store.set("dab-room",c);history.replaceState(null,"","#"+c);$("rc").textContent=c;show("game");seen=new Set();primed=false;
+ room=c;store.set("dab-room",c);history.replaceState(null,"","#"+c);$("rc").textContent=c;show("game");drawnBoxes=new Set();
  es&&es.close();es=new EventSource(`/api/events?code=${c}&token=${token}`);
- es.onmessage=m=>{const d=JSON.parse(m.data);if(g&&d.mv<g.mv&&d.round===g.round)return;if(g&&d.round!==g.round){seen=new Set();primed=false}g=d;draw()};
+ es.onmessage=m=>{const d=JSON.parse(m.data);if(g&&d.mv<g.mv&&d.round===g.round)return;if(g&&d.round!==g.round)drawnBoxes=new Set();g=d;draw()};
  es.onerror=()=>{say("Reconnecting…")};
 }
 function leave(){es&&es.close();es=null;g=null;room=null;store.set("dab-room");history.replaceState(null,"","#");show("lobby")}
@@ -94,7 +92,7 @@ function draw(){
  for(let r=0;r<N;r++)for(let c=0;c<N;c++){const k=r+","+c,o=g.own[k];
   const rect=svgEl("rect",{x:M+c*S+4,y:M+r*S+4,width:S-8,height:S-8,rx:10,fill:o==null?"transparent":col(o)});svg.appendChild(rect);
   if(o!=null){const t=svgEl("text",{x:M+c*S+S/2,y:M+r*S+S/2+8,"text-anchor":"middle","font-size":24,"font-weight":800,fill:"var(--on)"});t.textContent=initial(o);svg.appendChild(t);
-   if(!seen.has("b"+k)){seen.add("b"+k);if(primed)for(const n of[rect,t]){n.classList.add("pop");n.style.transformOrigin=`${M+c*S+S/2}px ${M+r*S+S/2}px`}}}}
+   if(!drawnBoxes.has(k)){drawnBoxes.add(k);for(const n of[rect,t]){n.classList.add("pop");n.style.transformOrigin=`${M+c*S+S/2}px ${M+r*S+S/2}px`}}}}
  const my=g.you===g.turn&&!g.over&&g.joined[1];
  const list=[];for(let r=0;r<=N;r++)for(let c=0;c<N;c++)list.push(["h",r,c]);
  for(let r=0;r<N;r++)for(let c=0;c<=N;c++)list.push(["v",r,c]);
@@ -102,14 +100,12 @@ function draw(){
   const x1=M+c*S,y1=M+r*S,x2=t==="h"?x1+S:x1,y2=t==="h"?y1:y1+S,k=t+r+","+c,o=g.e[k];
   const gr=svgEl("g",{});svg.appendChild(gr);
   if(o==null&&my){const h=svgEl("line",{x1,y1,x2,y2,class:"hit"});h.onclick=()=>move(k);gr.appendChild(h)}
-  const fresh=o!=null&&!seen.has(k)&&primed;if(o!=null)seen.add(k);
-  const l=svgEl("line",{x1,y1,x2,y2,class:"line"+(o!=null?" drawn":"")+(fresh?" sweep":"")});if(o!=null)l.style.stroke=col(o);gr.appendChild(l)}
+  const l=svgEl("line",{x1,y1,x2,y2,class:"line"+(o!=null?" drawn":"")});if(o!=null)l.style.stroke=col(o);gr.appendChild(l)}
  for(let r=0;r<=N;r++)for(let c=0;c<=N;c++)svg.appendChild(svgEl("circle",{cx:M+c*S,cy:M+r*S,r:6,fill:"var(--dot)"}));
  const esc=s=>s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
  const tag=i=>`<span class="dot${g.online[i]?" on":""}"></span>${esc(g.names[i])}${g.you===i?" (you)":""}: ${g.sc[i]}`;
  $("s1").innerHTML=tag(0);$("s2").innerHTML=tag(1);
  $("s1").classList.toggle("on",!g.over&&g.turn===0);$("s2").classList.toggle("on",!g.over&&g.turn===1);
- primed=true;
  $("again").disabled=!g.over||g.you<0;
  const nm=i=>g.names[i];
  if(!g.joined[1])say(g.you===0?"Waiting for your opponent — share the link or code "+room+".":"Joining…");
