@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dots and Boxes</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌿</text></svg>">
+<style>
+:root{--fg:#12372a;--mut:#3f6b5a;--dot:#12372a;--edge:rgba(18,55,42,.2);--hover:rgba(18,55,42,.5);--card:rgba(255,255,255,.55);--card-b:rgba(255,255,255,.7);
+--p1:#0b7a75;--p2:#ee6c4d;--on:#fff;--btn:#0b7a75;--btn-fg:#fff;--field:rgba(255,255,255,.75);
+--g1:#d8f3dc;--g2:#b7e4c7;--g3:#95d5b2;--g4:#a8e6e0;--g5:#c9f0d9}
+@media (prefers-color-scheme:dark){:root{--fg:#e6fff5;--mut:#9fd8c3;--dot:#e6fff5;--edge:rgba(230,255,245,.2);--hover:rgba(230,255,245,.55);--card:rgba(0,0,0,.25);--card-b:rgba(255,255,255,.12);
+--p1:#3ddbc8;--p2:#ff8a6b;--on:#062a22;--btn:#3ddbc8;--btn-fg:#062a22;--field:rgba(0,0,0,.3);
+--g1:#062a22;--g2:#0b3d3a;--g3:#114b3f;--g4:#0a3a4a;--g5:#0d4a38}}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,sans-serif;
+background:linear-gradient(125deg,var(--g1),var(--g2),var(--g3),var(--g4),var(--g5),var(--g1));background-size:400% 400%;animation:flow 22s ease infinite;
+display:flex;flex-direction:column;align-items:center;padding:16px;padding-top:max(16px,env(safe-area-inset-top));padding-bottom:max(16px,env(safe-area-inset-bottom))}
+@keyframes flow{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+@media (prefers-reduced-motion:reduce){body{animation:none}}
+h1{font-size:1.7rem;margin:8px 0 4px;letter-spacing:.02em}
+.sub{color:var(--mut);margin:0 0 8px;font-size:.95rem}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;margin:8px 0}
+.card{background:var(--card);border:1px solid var(--card-b);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-radius:20px;padding:14px;box-shadow:0 8px 30px rgba(0,40,30,.12)}
+#lobby{display:flex;flex-direction:column;align-items:center;gap:6px;padding:20px 22px}
+.pill{padding:6px 14px;border-radius:999px;border:2px solid transparent;font-weight:700;background:var(--card);backdrop-filter:blur(6px)}
+.pill.on{border-color:currentColor}
+#s1{color:var(--p1)}#s2{color:var(--p2)}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--edge);margin-right:6px}
+.dot.on{background:#2ecc71}
+button,input{font:inherit;padding:9px 16px;border-radius:12px;border:1px solid var(--edge);background:var(--field);color:var(--fg)}
+button{cursor:pointer;background:var(--btn);color:var(--btn-fg);border-color:transparent;font-weight:600;transition:transform .1s}
+button:hover:not(:disabled){transform:translateY(-1px)}
+button.ghost{background:var(--field);color:var(--fg);border-color:var(--edge)}
+button:disabled{opacity:.4;cursor:default}
+input{text-align:center}
+#code{width:6.5em;text-transform:uppercase;letter-spacing:.15em}
+#name{width:14em}
+svg{width:min(88vw,420px);height:auto;touch-action:manipulation;display:block}
+.hit{stroke:transparent;stroke-width:26;cursor:pointer}
+.line{stroke:var(--edge);stroke-width:5;stroke-linecap:round}
+.hit:hover+.line{stroke:var(--hover)}
+.drawn{stroke-width:7}
+#msg{min-height:1.5em;color:var(--mut);margin:8px 0;text-align:center;font-weight:500}
+.code{font-family:ui-monospace,monospace;font-size:1.3rem;letter-spacing:.2em;font-weight:700}
+.hide{display:none!important}
+.pop{animation:pop .35s ease}
+@keyframes pop{0%{transform:scale(.6);opacity:0}100%{transform:scale(1);opacity:1}}
+</style></head><body>
+<h1>Dots and Boxes</h1>
+<p class="sub">Claim the most boxes to win</p>
+<div id="lobby" class="card hide">
+ <label for="name">Your name</label>
+ <input id="name" maxlength="12" placeholder="Type your name" autocomplete="nickname">
+ <div class="row"><button id="create">Create game</button></div>
+ <div class="row">or join with a code <input id="code" maxlength="4" placeholder="ABCD" autocapitalize="characters"><button id="join">Join</button></div>
+</div>
+<div id="game" class="hide">
+ <div class="row">Room <span class="code" id="rc"></span><button id="copy" class="ghost">Copy link</button></div>
+ <div class="row"><span class="pill" id="s1"></span><span class="pill" id="s2"></span></div>
+ <div class="card"><svg id="b" viewBox="0 0 300 300"></svg></div>
+</div>
+<div id="msg"></div>
+<div class="row hide" id="ctl"><button id="again" disabled>Rematch</button><button id="leave" class="ghost">Leave</button></div>
+<script>
+const N=4,S=60,M=30,NS="http://www.w3.org/2000/svg",$=i=>document.getElementById(i);
+const store={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v)}catch(e){}}};
+let token=store.get("dab-token");
+if(!token){const a=new Uint8Array(16);crypto.getRandomValues(a);token=[...a].map(x=>x.toString(16).padStart(2,"0")).join("");store.set("dab-token",token)}
+let room=null,es=null,g=null,busy=false,drawnBoxes=new Set();
+const col=p=>`var(--p${p+1})`,say=t=>$("msg").textContent=t;
+const myName=()=>$("name").value.trim();
+const initial=i=>(Array.from(g.names[i])[0]||"?").toUpperCase();
+function show(w){$("lobby").classList.toggle("hide",w!=="lobby");$("game").classList.toggle("hide",w!=="game");$("ctl").classList.toggle("hide",w!=="game");
+ if(w==="lobby")say("Enter your name, then create a game or join a friend's.")}
+async function post(path,body){
+ const r=await fetch("/api/"+path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,...body})});
+ const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||"request failed");return j}
+function svgEl(n,a){const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);return e}
+
+async function create(){store.set("dab-name",myName());try{const{code}=await post("create",{name:myName()});enter(code)}catch(e){say("Couldn't create game: "+e.message)}}
+function joinCode(){const c=$("code").value.trim().toUpperCase();if(c.length!==4)return say("Enter the 4-letter room code.");store.set("dab-name",myName());enter(c)}
+async function enter(c){
+ try{await post("join",{code:c,name:store.get("dab-name")||""})}catch(e){store.set("dab-room");history.replaceState(null,"","#");show("lobby");say(e.message==="no such room"?"No game with that code.":e.message);return}
+ room=c;store.set("dab-room",c);history.replaceState(null,"","#"+c);$("rc").textContent=c;show("game");drawnBoxes=new Set();
+ es&&es.close();es=new EventSource(`/api/events?code=${c}&token=${token}`);
+ es.onmessage=m=>{const d=JSON.parse(m.data);if(g&&d.mv<g.mv&&d.round===g.round)return;if(g&&d.round!==g.round)drawnBoxes=new Set();g=d;draw()};
+ es.onerror=()=>{say("Reconnecting…")};
+}
+function leave(){es&&es.close();es=null;g=null;room=null;store.set("dab-room");history.replaceState(null,"","#");show("lobby")}
+
+function draw(){
+ const svg=$("b");svg.innerHTML="";
+ for(let r=0;r<N;r++)for(let c=0;c<N;c++){const k=r+","+c,o=g.own[k];
+  const rect=svgEl("rect",{x:M+c*S+4,y:M+r*S+4,width:S-8,height:S-8,rx:10,fill:o==null?"transparent":col(o)});svg.appendChild(rect);
+  if(o!=null){const t=svgEl("text",{x:M+c*S+S/2,y:M+r*S+S/2+8,"text-anchor":"middle","font-size":24,"font-weight":800,fill:"var(--on)"});t.textContent=initial(o);svg.appendChild(t);
+   if(!drawnBoxes.has(k)){drawnBoxes.add(k);for(const n of[rect,t]){n.classList.add("pop");n.style.transformOrigin=`${M+c*S+S/2}px ${M+r*S+S/2}px`}}}}
+ const my=g.you===g.turn&&!g.over&&g.joined[1];
+ const list=[];for(let r=0;r<=N;r++)for(let c=0;c<N;c++)list.push(["h",r,c]);
+ for(let r=0;r<N;r++)for(let c=0;c<=N;c++)list.push(["v",r,c]);
+ for(const[t,r,c]of list){
+  const x1=M+c*S,y1=M+r*S,x2=t==="h"?x1+S:x1,y2=t==="h"?y1:y1+S,k=t+r+","+c,o=g.e[k];
+  const gr=svgEl("g",{});svg.appendChild(gr);
+  if(o==null&&my){const h=svgEl("line",{x1,y1,x2,y2,class:"hit"});h.onclick=()=>move(k);gr.appendChild(h)}
+  const l=svgEl("line",{x1,y1,x2,y2,class:"line"+(o!=null?" drawn":"")});if(o!=null)l.style.stroke=col(o);gr.appendChild(l)}
+ for(let r=0;r<=N;r++)for(let c=0;c<=N;c++)svg.appendChild(svgEl("circle",{cx:M+c*S,cy:M+r*S,r:6,fill:"var(--dot)"}));
+ const esc=s=>s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+ const tag=i=>`<span class="dot${g.online[i]?" on":""}"></span>${esc(g.names[i])}${g.you===i?" (you)":""}: ${g.sc[i]}`;
+ $("s1").innerHTML=tag(0);$("s2").innerHTML=tag(1);
+ $("s1").classList.toggle("on",!g.over&&g.turn===0);$("s2").classList.toggle("on",!g.over&&g.turn===1);
+ $("again").disabled=!g.over||g.you<0;
+ const nm=i=>g.names[i];
+ if(!g.joined[1])say(g.you===0?"Waiting for your opponent — share the link or code "+room+".":"Joining…");
+ else if(g.over){const[a,b]=g.sc;say(a===b?"It's a draw!":g.you<0?`${nm(a>b?0:1)} wins!`:(a>b?0:1)===g.you?"You win! 🎉":`${nm(a>b?0:1)} wins — rematch?`)}
+ else if(g.you<0)say(`Spectating — ${nm(g.turn)} to move.`);
+ else say(my?"Your move":`Waiting for ${nm(g.turn)}…`);
+}
+async function move(k){
+ if(busy)return;busy=true;
+ try{await post("move",{code:room,edge:k})}catch(e){say(e.message)}busy=false}
+$("create").onclick=create;$("join").onclick=joinCode;
+$("code").onkeydown=e=>{if(e.key==="Enter")joinCode()};
+$("again").onclick=()=>post("rematch",{code:room}).catch(e=>say(e.message));
+$("leave").onclick=leave;
+$("copy").onclick=async()=>{const u=location.origin+"/#"+room;try{await navigator.clipboard.writeText(u);$("copy").textContent="Copied!"}catch(e){$("copy").textContent=u}
+ setTimeout(()=>$("copy").textContent="Copy link",1500)};
+$("name").value=store.get("dab-name")||"";
+const h=(location.hash||"").replace("#","").toUpperCase()||store.get("dab-room");
+if(h&&h.length===4&&store.get("dab-name"))enter(h);
+else{show("lobby");if(h&&h.length===4){$("code").value=h;say("Enter your name, then press Join.")}}
+</script></body></html>
