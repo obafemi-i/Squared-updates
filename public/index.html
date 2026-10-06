@@ -26,7 +26,7 @@ h1{font-size:1.7rem;margin:8px 0 4px;letter-spacing:.02em}
 #s1{color:var(--p1)}#s2{color:var(--p2)}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--edge);margin-right:6px}
 .dot.on{background:#2ecc71}
-button,input{font:inherit;padding:9px 16px;border-radius:12px;border:1px solid var(--edge);background:var(--field);color:var(--fg)}
+button,input,select{font:inherit;padding:9px 16px;border-radius:12px;border:1px solid var(--edge);background:var(--field);color:var(--fg)}
 button{cursor:pointer;background:var(--btn);color:var(--btn-fg);border-color:transparent;font-weight:600;transition:transform .1s}
 button:hover:not(:disabled){transform:translateY(-1px)}
 button.ghost{background:var(--field);color:var(--fg);border-color:var(--edge)}
@@ -34,13 +34,11 @@ button:disabled{opacity:.4;cursor:default}
 input{text-align:center}
 #code{width:6.5em;text-transform:uppercase;letter-spacing:.15em}
 #name{width:14em}
-svg{width:min(88vw,420px);height:auto;touch-action:manipulation;display:block}
-.hit{stroke:transparent;stroke-width:26;cursor:pointer}
-.line{stroke:var(--edge);stroke-width:5;stroke-linecap:round}
-.hit:hover+.line{stroke:var(--hover)}
-.drawn{stroke-width:7}
-.sweep{stroke-dasharray:60;animation:sweep .5s cubic-bezier(.3,1.3,.5,1) both}
-@keyframes sweep{from{stroke-dashoffset:60;stroke-width:4}65%{stroke-dashoffset:0;stroke-width:12}to{stroke-dashoffset:0;stroke-width:7}}
+svg{width:min(90vw,var(--bw,420px));height:auto;touch-action:manipulation;display:block}
+.hit{stroke:transparent;cursor:pointer}
+.line{stroke-linecap:round;stroke-width:var(--lw,7)}
+.sweep{stroke-dasharray:var(--len,60);animation:sweep .5s cubic-bezier(.3,1.3,.5,1) both}
+@keyframes sweep{from{stroke-dashoffset:var(--len,60);stroke-width:calc(var(--lw,7)*.55)}65%{stroke-dashoffset:0;stroke-width:calc(var(--lw,7)*1.7)}to{stroke-dashoffset:0;stroke-width:var(--lw,7)}}
 #msg{min-height:1.5em;color:var(--mut);margin:8px 0;text-align:center;font-weight:500}
 .code{font-family:ui-monospace,monospace;font-size:1.3rem;letter-spacing:.2em;font-weight:700}
 .hide{display:none!important}
@@ -52,18 +50,18 @@ svg{width:min(88vw,420px);height:auto;touch-action:manipulation;display:block}
 <div id="lobby" class="card hide">
  <label for="name">Your name</label>
  <input id="name" maxlength="12" placeholder="Type your name" autocomplete="nickname">
- <div class="row"><button id="create">Start a game</button></div>
+ <div class="row"><label for="size">Grid</label><select id="size"><option value="5">5 × 5 dots</option><option value="10">10 × 10 dots</option><option value="15">15 × 15 dots</option><option value="20">20 × 20 dots</option><option value="25">25 × 25 dots</option></select><button id="create">Start a game</button></div>
  <div class="row">or join with a code <input id="code" maxlength="4" placeholder="ABCD" autocapitalize="characters"><button id="join">Join</button></div>
 </div>
 <div id="game" class="hide">
- <div class="row">Room <span class="code" id="rc"></span><button id="copy" class="ghost">Copy link</button></div>
+ <div class="row">Room <span class="code" id="rc"></span><span id="gs" style="color:var(--mut)"></span><button id="copy" class="ghost">Copy link</button></div>
  <div class="row"><span class="pill" id="s1"></span><span class="pill" id="s2"></span></div>
  <div class="card"><svg id="b" viewBox="0 0 300 300"></svg></div>
 </div>
 <div id="msg"></div>
 <div class="row hide" id="ctl"><button id="again" disabled>Rematch</button><button id="leave" class="ghost">Leave</button></div>
 <script>
-const N=4,S=60,M=30,NS="http://www.w3.org/2000/svg",$=i=>document.getElementById(i);
+const NS="http://www.w3.org/2000/svg",$=i=>document.getElementById(i);
 const store={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v)}catch(e){}}};
 let token=store.get("dab-token");
 if(!token){const a=new Uint8Array(16);crypto.getRandomValues(a);token=[...a].map(x=>x.toString(16).padStart(2,"0")).join("");store.set("dab-token",token)}
@@ -78,7 +76,7 @@ async function post(path,body){
  const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||"request failed");return j}
 function svgEl(n,a){const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);return e}
 
-async function create(){store.set("dab-name",myName());try{const{code}=await post("create",{name:myName()});enter(code)}catch(e){say("Couldn't create game: "+e.message)}}
+async function create(){store.set("dab-name",myName());try{store.set("dab-size",$("size").value);const{code}=await post("create",{name:myName(),size:+$("size").value});enter(code)}catch(e){say("Couldn't create game: "+e.message)}}
 function joinCode(){const c=$("code").value.trim().toUpperCase();if(c.length!==4)return say("Enter the 4-letter room code.");store.set("dab-name",myName());enter(c)}
 async function enter(c){
  try{await post("join",{code:c,name:store.get("dab-name")||""})}catch(e){store.set("dab-room");history.replaceState(null,"","#");show("lobby");say(e.message==="no such room"?"No game with that code.":e.message);return}
@@ -90,21 +88,23 @@ async function enter(c){
 function leave(){es&&es.close();es=null;g=null;room=null;store.set("dab-room");history.replaceState(null,"","#");show("lobby")}
 
 function draw(){
- const svg=$("b");svg.innerHTML="";
- for(let r=0;r<N;r++)for(let c=0;c<N;c++){const k=r+","+c,o=g.own[k];
-  const rect=svgEl("rect",{x:M+c*S+4,y:M+r*S+4,width:S-8,height:S-8,rx:10,fill:o==null?"transparent":col(o)});svg.appendChild(rect);
-  if(o!=null){const t=svgEl("text",{x:M+c*S+S/2,y:M+r*S+S/2+8,"text-anchor":"middle","font-size":24,"font-weight":800,fill:"var(--on)"});t.textContent=initial(o);svg.appendChild(t);
-   if(!seen.has("b"+k)){seen.add("b"+k);if(primed)for(const n of[rect,t]){n.classList.add("pop");n.style.transformOrigin=`${M+c*S+S/2}px ${M+r*S+S/2}px`}}}}
- const my=g.you===g.turn&&!g.over&&g.joined[1];
+ const N=g.n,S=260/N,M=20,svg=$("b"),ins=S*.07;svg.innerHTML="";
+ svg.style.setProperty("--bw",Math.min(760,420+(N-4)*16)+"px");
+ svg.style.setProperty("--lw",Math.max(2,S*.11).toFixed(2));svg.style.setProperty("--len",S.toFixed(2));
+ $("gs").textContent=" · "+(N+1)+"×"+(N+1)+" dots";
+ for(let r=0;r<N;r++)for(let c=0;c<N;c++){const k=r+","+c,o=g.own[k],cx=M+c*S+S/2,cy=M+r*S+S/2;
+  const rect=svgEl("rect",{x:M+c*S+ins,y:M+r*S+ins,width:S-2*ins,height:S-2*ins,rx:S*.16,fill:o==null?"transparent":col(o)});svg.appendChild(rect);
+  if(o!=null){const t=svgEl("text",{x:cx,y:cy+S*.15,"text-anchor":"middle","font-size":S*.42,"font-weight":800,fill:"var(--on)"});t.textContent=initial(o);svg.appendChild(t);
+   if(!seen.has("b"+k)){seen.add("b"+k);if(primed)for(const n of[rect,t]){n.classList.add("pop");n.style.transformOrigin=`${cx}px ${cy}px`}}}}
+ const my=g.you===g.turn&&!g.over&&g.joined[1],hw=Math.min(28,S*.6);
  const list=[];for(let r=0;r<=N;r++)for(let c=0;c<N;c++)list.push(["h",r,c]);
  for(let r=0;r<N;r++)for(let c=0;c<=N;c++)list.push(["v",r,c]);
  for(const[t,r,c]of list){
   const x1=M+c*S,y1=M+r*S,x2=t==="h"?x1+S:x1,y2=t==="h"?y1:y1+S,k=t+r+","+c,o=g.e[k];
-  const gr=svgEl("g",{});svg.appendChild(gr);
-  if(o==null&&my){const h=svgEl("line",{x1,y1,x2,y2,class:"hit"});h.onclick=()=>move(k);gr.appendChild(h)}
-  const fresh=o!=null&&!seen.has(k)&&primed;if(o!=null)seen.add(k);
-  const l=svgEl("line",{x1,y1,x2,y2,class:"line"+(o!=null?" drawn":"")+(fresh?" sweep":"")});if(o!=null)l.style.stroke=col(o);gr.appendChild(l)}
- for(let r=0;r<=N;r++)for(let c=0;c<=N;c++)svg.appendChild(svgEl("circle",{cx:M+c*S,cy:M+r*S,r:6,fill:"var(--dot)"}));
+  if(o==null){if(my){const h=svgEl("line",{x1,y1,x2,y2,class:"hit"});h.style.strokeWidth=hw;h.onclick=()=>move(k);svg.appendChild(h)}continue}
+  const fresh=!seen.has(k)&&primed;seen.add(k);
+  const l=svgEl("line",{x1,y1,x2,y2,class:"line"+(fresh?" sweep":"")});l.style.stroke=col(o);svg.appendChild(l)}
+ for(let r=0;r<=N;r++)for(let c=0;c<=N;c++)svg.appendChild(svgEl("circle",{cx:M+c*S,cy:M+r*S,r:Math.max(2.2,S*.1),fill:"var(--dot)"}));
  const esc=s=>s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
  const tag=i=>`<span class="dot${g.online[i]?" on":""}"></span>${esc(g.names[i])}${g.you===i?" (you)":""}: ${g.sc[i]}`;
  $("s1").innerHTML=tag(0);$("s2").innerHTML=tag(1);
@@ -126,7 +126,7 @@ $("again").onclick=()=>post("rematch",{code:room}).catch(e=>say(e.message));
 $("leave").onclick=leave;
 $("copy").onclick=async()=>{const u=location.origin+"/#"+room;try{await navigator.clipboard.writeText(u);$("copy").textContent="Copied!"}catch(e){$("copy").textContent=u}
  setTimeout(()=>$("copy").textContent="Copy link",1500)};
-$("name").value=store.get("dab-name")||"";
+$("name").value=store.get("dab-name")||"";$("size").value=store.get("dab-size")||"5";
 const h=(location.hash||"").replace("#","").toUpperCase()||store.get("dab-room");
 if(h&&h.length===4&&store.get("dab-name"))enter(h);
 else{show("lobby");if(h&&h.length===4){$("code").value=h;say("Enter your name, then press Join.")}}

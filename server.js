@@ -6,7 +6,7 @@ const path = require("path");
 const crypto = require("crypto");
 
 const PORT = process.env.PORT || 3000;
-const N = 4;                              // boxes per side (5x5 dots)
+const SIZES = [5, 10, 15, 20, 25];        // allowed dots per side; boxes per side = dots - 1
 const ROOM_TTL_MS = 6 * 60 * 60 * 1000;   // drop rooms idle for 6h
 const MAX_ROOMS = 5000;
 const PUBLIC = path.join(__dirname, "public");
@@ -22,10 +22,10 @@ function newCode() {
   }
 }
 const cleanName = (n) => Array.from(String(n || "").replace(/[\u0000-\u001f\u007f<>]/g, "").trim()).slice(0, 12).join("").trim();
-function newRoom(token, name) {
-  return { seats: [token, null], names: [name || "Player 1", null], e: {}, own: {}, sc: [0, 0], turn: 0, round: 0, mv: 0, clients: new Set(), last: Date.now() };
+function newRoom(token, name, n) {
+  return { n, seats: [token, null], names: [name || "Player 1", null], e: {}, own: {}, sc: [0, 0], turn: 0, round: 0, mv: 0, clients: new Set(), last: Date.now() };
 }
-const validEdge = (k) => {
+const validEdge = (k, N) => {
   const m = /^([hv])(\d+),(\d+)$/.exec(k); if (!m) return false;
   const r = +m[2], c = +m[3];
   return m[1] === "h" ? r <= N && c < N : r < N && c <= N;
@@ -35,14 +35,15 @@ const sides = (r, c) => ["h" + r + "," + c, "h" + (r + 1) + "," + c, "v" + r + "
 function seatOf(room, token) { return token ? room.seats.indexOf(token) : -1; }
 function view(code, room, token) {
   const online = [0, 1].map((i) => [...room.clients].some((cl) => room.seats[i] && cl.token === room.seats[i]));
-  return { code, n: N, e: room.e, own: room.own, sc: room.sc, turn: room.turn, round: room.round, mv: room.mv,
-    joined: [!!room.seats[0], !!room.seats[1]], names: [room.names[0] || "Player 1", room.names[1] || "Player 2"], online, you: seatOf(room, token), over: room.sc[0] + room.sc[1] === N * N };
+  return { code, n: room.n, e: room.e, own: room.own, sc: room.sc, turn: room.turn, round: room.round, mv: room.mv,
+    joined: [!!room.seats[0], !!room.seats[1]], names: [room.names[0] || "Player 1", room.names[1] || "Player 2"], online, you: seatOf(room, token), over: room.sc[0] + room.sc[1] === room.n * room.n };
 }
 function broadcast(code, room) {
   for (const cl of room.clients) cl.res.write("data: " + JSON.stringify(view(code, room, cl.token)) + "\n\n");
 }
 
 function applyMove(room, seat, k) {
+  const N = room.n;
   room.e[k] = seat; room.mv++;
   const t = k[0], [r, c] = k.slice(1).split(",").map(Number);
   const cand = t === "h" ? [[r - 1, c], [r, c]] : [[r, c - 1], [r, c]];
@@ -83,7 +84,8 @@ async function api(req, res, url) {
 
   if (url.pathname === "/api/create") {
     if (rooms.size >= MAX_ROOMS) return send(res, 503, { error: "server full" });
-    const code = newCode(); rooms.set(code, newRoom(b.token, cleanName(b.name)));
+    const dots = SIZES.includes(b.size) ? b.size : 5;
+    const code = newCode(); rooms.set(code, newRoom(b.token, cleanName(b.name), dots - 1));
     return send(res, 200, { code });
   }
   const room = getRoom(b.code); const code = String(b.code || "").toUpperCase();
@@ -101,14 +103,14 @@ async function api(req, res, url) {
 
   if (url.pathname === "/api/move") {
     if (!room.seats[1]) return send(res, 409, { error: "waiting for opponent" });
-    if (room.sc[0] + room.sc[1] === N * N) return send(res, 409, { error: "game over" });
+    if (room.sc[0] + room.sc[1] === room.n * room.n) return send(res, 409, { error: "game over" });
     if (room.turn !== seat) return send(res, 409, { error: "not your turn" });
-    if (!validEdge(b.edge) || room.e[b.edge] != null) return send(res, 400, { error: "illegal move" });
+    if (!validEdge(b.edge, room.n) || room.e[b.edge] != null) return send(res, 400, { error: "illegal move" });
     applyMove(room, seat, b.edge); broadcast(code, room);
     return send(res, 200, { ok: true });
   }
   if (url.pathname === "/api/rematch") {
-    if (room.sc[0] + room.sc[1] !== N * N) return send(res, 409, { error: "game not over" });
+    if (room.sc[0] + room.sc[1] !== room.n * room.n) return send(res, 409, { error: "game not over" });
     room.e = {}; room.own = {}; room.sc = [0, 0]; room.round++; room.turn = room.round % 2; room.mv++;
     broadcast(code, room);
     return send(res, 200, { ok: true });
