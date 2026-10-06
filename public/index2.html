@@ -34,7 +34,7 @@ button:disabled{opacity:.4;cursor:default}
 input{text-align:center}
 #code{width:6.5em;text-transform:uppercase;letter-spacing:.15em}
 #name{width:14em}
-svg{width:min(94vw,var(--bw,560px));height:auto;touch-action:manipulation;display:block}
+svg{width:min(90vw,var(--bw,420px));height:auto;touch-action:manipulation;display:block}
 .hit{stroke:transparent;cursor:pointer}
 .line{stroke-linecap:round;stroke-width:var(--lw,7)}
 .sweep{stroke-dasharray:var(--len,60);animation:sweep .5s cubic-bezier(.3,1.3,.5,1) both}
@@ -45,12 +45,12 @@ svg{width:min(94vw,var(--bw,560px));height:auto;touch-action:manipulation;displa
 .pop{animation:pop .5s ease-out both}
 @keyframes pop{0%{transform:scale(.3);opacity:0}55%{transform:scale(1.2);opacity:1}78%{transform:scale(.93)}100%{transform:scale(1)}}
 </style></head><body>
-<h1>Dots and Boxes</h1>
-<p class="sub">Claim the most boxes to win</p>
+<h1>Squared</h1>
+<p class="sub">Time to take somebody to school</p>
 <div id="lobby" class="card hide">
  <label for="name">Your name</label>
  <input id="name" maxlength="12" placeholder="Type your name" autocomplete="nickname">
- <div class="row"><label for="size">Grid</label><select id="size"><option value="5">5 × 5 dots</option><option value="10">10 × 10 dots</option><option value="15">15 × 15 dots</option><option value="20">20 × 20 dots</option><option value="25">25 × 25 dots</option></select><button id="create">Create game</button></div>
+ <div class="row"><label for="size">Grid</label><select id="size"><option value="5">5 × 5 dots</option><option value="10">10 × 10 dots</option><option value="15">15 × 15 dots</option><option value="20">20 × 20 dots</option><option value="25">25 × 25 dots</option></select><button id="create">Start a game</button></div>
  <div class="row">or join with a code <input id="code" maxlength="4" placeholder="ABCD" autocapitalize="characters"><button id="join">Join</button></div>
 </div>
 <div id="game" class="hide">
@@ -70,7 +70,7 @@ const col=p=>`var(--p${p+1})`,say=t=>$("msg").textContent=t;
 const myName=()=>$("name").value.trim();
 const initial=i=>(Array.from(g.names[i])[0]||"?").toUpperCase();
 function show(w){$("lobby").classList.toggle("hide",w!=="lobby");$("game").classList.toggle("hide",w!=="game");$("ctl").classList.toggle("hide",w!=="game");
- if(w==="lobby")say("Enter your name, then create a game or join a friend's.")}
+ if(w==="lobby")say("Enter your name, then create a game or join with a code.")}
 async function post(path,body){
  const r=await fetch("/api/"+path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token,...body})});
  const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||"request failed");return j}
@@ -89,7 +89,7 @@ function leave(){es&&es.close();es=null;g=null;room=null;store.set("dab-room");h
 
 function draw(){
  const N=g.n,S=260/N,M=20,svg=$("b"),ins=S*.07;svg.innerHTML="";
- svg.style.setProperty("--bw",Math.min(1000,560+(N-4)*22)+"px");
+ svg.style.setProperty("--bw",Math.min(760,420+(N-4)*16)+"px");
  svg.style.setProperty("--lw",Math.max(2,S*.11).toFixed(2));svg.style.setProperty("--len",S.toFixed(2));
  $("gs").textContent=" · "+(N+1)+"×"+(N+1)+" dots";
  for(let r=0;r<N;r++)for(let c=0;c<N;c++){const k=r+","+c,o=g.own[k],cx=M+c*S+S/2,cy=M+r*S+S/2;
